@@ -310,6 +310,9 @@ class QuicPacketBuilder:
                     + PACKET_NUMBER_SEND_SIZE
                     + self._packet_crypto.aead_tag_size
                 )
+                # ADDED CODE HERE TO ACCOMODATE SIZE OF NEW ENCRYPTION
+                if self._packet_type == QuicPacketType.INITIAL:
+                    length += 256 + 16 + 16 - self._packet_crypto.aead_tag_size
 
                 buf.seek(self._packet_start)
                 buf.push_uint8(
@@ -346,14 +349,14 @@ class QuicPacketBuilder:
             if self._packet_type == QuicPacketType.INITIAL:
                 
                 # Use custom encryption based on og 
-                encrypted_payload = self._packet_crypto.send.encrypt_initial_packet(
+                buf.push_bytes(
+                    self._packet_crypto.send.encrypt_initial_packet(
                         plain[0 : self._header_size],
                         plain[self._header_size : packet_size],
                         self._packet_number,
                     )
+                )
                 
-                # Write to buf as done below
-                buf.push_bytes(encrypted_payload)
             else:
             # END EDITED CODE HERE
                 buf.push_bytes(

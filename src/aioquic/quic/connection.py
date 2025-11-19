@@ -911,10 +911,12 @@ class QuicConnection:
 
                 # ADDED CODE FOR CUSTOM INITIAL DECRYPTION
                 if header.packet_type == QuicPacketType.INITIAL:
-
+                    print("Start offset is:", start_off)
+                    print("End offset is:", end_off)
                     plain_header, plain_payload, packet_number = crypto.recv.decrypt_initial_packet(
                             data[start_off:end_off], encrypted_off, space.expected_packet_number
                         )
+                    
 
                 else:
                 # END ADDED CODE FOR CUSTOM INITIAL DECRYPTION

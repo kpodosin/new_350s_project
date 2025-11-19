@@ -126,16 +126,23 @@ class CryptoContext:
     ### New functions begin
     def protected_initial_encrypter(self, payload: bytes) -> bytes:
         symmetric_key = os.urandom(32)
-        iv = os.urandom(16)
+        print(f"DEBUG_PROTECTED_INITIAL_ENCRYPTER: Symmetric key we will encrypt with (hex): {symmetric_key.hex()}")
+        print(f"DEBUG_PROTECTED_INITIAL_ENCRYPTER: Length of symmetric key we will encrypt with (hex): {len(symmetric_key)}")
 
-        print(f"DEBUG: Symmetric key (hex): {symmetric_key.hex()}")
-        print(f"DEBUG: IV (hex): {iv.hex()}")
+        iv = os.urandom(16)
+        print(f"DEBUG_PROTECTED_INITIAL_ENCRYPTER: IV (hex): {iv.hex()}")
+        print(f"DEBUG_PROTECTED_INITIAL_ENCRYPTER: Length of IV (hex): {len(iv)}")
+
+
         cipher = Cipher(algorithms.AES(symmetric_key), modes.GCM(iv))
         encryptor = cipher.encryptor()
         ciphertext = encryptor.update(payload) + encryptor.finalize()
         tag = encryptor.tag
-        print(f"DEBUG: Ciphertext (hex): {ciphertext.hex()}")
-        print(f"DEBUG: Tag (hex): {tag.hex()}")
+        # print(f"DEBUG: Ciphertext (hex): {ciphertext.hex()}")
+        print(f"DEBUG_PROTECTED_INITIAL_ENCRYPTER: Tag (hex): {tag.hex()}")
+        print(f"DEBUG_PROTECTED_INITIAL_ENCRYPTER: Length of Tag (hex): {len(tag)}")
+
+        print(f"DEBUG_PROTECTED_INITIAL_ENCRYPTER: Length of Ciphertext (hex): {len(ciphertext)}")
 
         # Do the sandwiched encryption with the pubkey and sym key
         pub_key = load_pem_public_key(PUBLIC_KEY)
@@ -147,31 +154,38 @@ class CryptoContext:
                 label=None
             )
         )
+        print(f"DEBUG_PROTECTED_INITIAL_ENCRYPTER: Length of encrypted symmetric key: {len(encrypted_symmetric_key)}")
+        print(f"DEBUG_PROTECTED_INITIAL_ENCRYPTER: ENCRYPTION IS DONE. WE ARE RETURNING SOMETHING OF LENGTH {len(encrypted_symmetric_key + iv + tag + ciphertext)}")
+        print("-------------------------------------------------------------")
+        print("-------------------------------------------------------------")
+        print("-------------------------------------------------------------")
+
         return encrypted_symmetric_key + iv + tag + ciphertext
 
     def protected_initial_decrypter(self, encrypted_payload: bytes) -> bytes:
 
-        RSA_KEY_SIZE = 256
+        ENC_SYMMETRIC_KEY_SIZE = 256
         IV_SIZE = 16
         TAG_SIZE = 16
 
-        print(f"DEBUG: Encrypted payload length: {len(encrypted_payload)}")
-        print(f"DEBUG: First 10 bytes (hex): {encrypted_payload[:10].hex()}")
+        print(f"DEBUG_PROTECTED_INITIAL_DECRYPTER: Encrypted payload length. Does it match what we returned from encrypter?: {len(encrypted_payload)}")
+        print(f"DEBUG_PROTECTED_INITIAL_DECRYPTER: First 10 bytes (hex): {encrypted_payload[:10].hex()}")
 
         if len(encrypted_payload) < 2:
+            print("Erroring because the payload is too short.")
             raise ValueError(f"Encrypted payload is too short to contain symmetric key length. is {len(encrypted_payload)} bytes.")
 
         # Extract all the stuff from the encrypted bytes:
 
-        encrypted_sym_key = encrypted_payload[:RSA_KEY_SIZE]
-        iv = encrypted_payload[RSA_KEY_SIZE: RSA_KEY_SIZE + IV_SIZE]
-        tag = encrypted_payload[RSA_KEY_SIZE + IV_SIZE:RSA_KEY_SIZE + IV_SIZE + TAG_SIZE]
-        ciphertext = encrypted_payload[RSA_KEY_SIZE + IV_SIZE + TAG_SIZE:]
-        print(f"DEBUG: Encrypted symmetric key (hex): {encrypted_sym_key.hex()}")
-        print(f"DEBUG: Encrypted symmetric key length: {len(encrypted_sym_key)}")
-        print(f"DEBUG: IV length: {len(iv)}")
-        print(f"DEBUG: Tag length: {len(tag)}")
-        print(f"DEBUG: Ciphertext length: {len(ciphertext)}")
+        encrypted_sym_key = encrypted_payload[:ENC_SYMMETRIC_KEY_SIZE]
+        iv = encrypted_payload[ENC_SYMMETRIC_KEY_SIZE: ENC_SYMMETRIC_KEY_SIZE + IV_SIZE]
+        tag = encrypted_payload[ENC_SYMMETRIC_KEY_SIZE + IV_SIZE:ENC_SYMMETRIC_KEY_SIZE + IV_SIZE + TAG_SIZE]
+        ciphertext = encrypted_payload[ENC_SYMMETRIC_KEY_SIZE + IV_SIZE + TAG_SIZE:]
+        print(f"DEBUG_PROTECTED_INITIAL_DECRYPTER: Encrypted symmetric key (hex): {encrypted_sym_key.hex()}")
+        print(f"DEBUG_PROTECTED_INITIAL_DECRYPTER: Encrypted symmetric key length: {len(encrypted_sym_key)}")
+        print(f"DEBUG_PROTECTED_INITIAL_DECRYPTER: IV length: {len(iv)}")
+        print(f"DEBUG_PROTECTED_INITIAL_DECRYPTER: Tag length: {len(tag)}")
+        print(f"DEBUG_PROTECTED_INITIAL_DECRYPTER: Ciphertext length: {len(ciphertext)}")
 
         # Now decrypt our symmetric key
         private_key = load_pem_private_key(PRIVATE_KEY, password=None)
@@ -203,19 +217,31 @@ class CryptoContext:
         # payload protection
         protected_payload = self.protected_initial_encrypter(plain_payload)
         # header protection
-        return self.hp.apply(plain_header, protected_payload)
+        # return self.hp.apply(plain_header, protected_payload)
+        # Try not doing header protection: 
+        print(f"After adding in the plain header, the length of what we return from encrypt_initial_packet is: {len(plain_header + protected_payload)}")
+        # From above, found out the header is 28 bytes. 
+        return plain_header + protected_payload
 
     def decrypt_initial_packet(self, encrypted_packet: bytes, encrypted_offset: int, expected_packet_number: int) -> tuple[bytes, bytes, int]:
         # header protection
-        plain_header, packet_number = self.hp.remove(encrypted_packet, encrypted_offset)
-        first_byte = plain_header[0]
+        # plain_header, packet_number = self.hp.remove(encrypted_packet, encrypted_offset)
+        # Without header protection: 
+        print(f"Length of Encrypted packet before decrypting is: {len(encrypted_packet)}")
+        print(f"Encrypted offset before decrypting is: {encrypted_offset}") # This prints out 26 - I think it should be 28. 
+        plain_header = encrypted_packet[:28] # used to be encrypted offset
+
+        # first_byte = plain_header[0]
         # packet number
-        pn_length = (first_byte & 0x03) + 1
-        packet_number = decode_packet_number(
-            packet_number, pn_length * 8, expected_packet_number
-        )
-        payload_start = encrypted_offset + len(plain_header)
-        encrypted_payload = encrypted_packet[payload_start:]
+        # pn_length = (first_byte & 0x03) + 1
+        # packet_number = decode_packet_number(
+        #     packet_number, pn_length * 8, expected_packet_number
+        # )
+        packet_number = expected_packet_number
+
+        # payload_start = encrypted_offset + len(plain_header)
+        # encrypted_payload = encrypted_packet[payload_start:]
+        encrypted_payload = encrypted_packet[28:] # used to be encrypted offset
 
         # payload protection
         plain_payload = self.protected_initial_decrypter(encrypted_payload)
