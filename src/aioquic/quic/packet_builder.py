@@ -341,13 +341,28 @@ class QuicPacketBuilder:
             # encrypt in place
             plain = buf.data_slice(self._packet_start, self._packet_start + packet_size)
             buf.seek(self._packet_start)
-            buf.push_bytes(
-                self._packet_crypto.encrypt_packet(
-                    plain[0 : self._header_size],
-                    plain[self._header_size : packet_size],
-                    self._packet_number,
+
+            # EDITED CODE HERE:
+            if self._packet_type == QuicPacketType.INITIAL:
+                
+                # Use custom encryption based on og 
+                encrypted_payload = self._packet_crypto.send.encrypt_initial_packet(
+                        plain[0 : self._header_size],
+                        plain[self._header_size : packet_size],
+                        self._packet_number,
+                    )
+                
+                # Write to buf as done below
+                buf.push_bytes(encrypted_payload)
+            else:
+            # END EDITED CODE HERE
+                buf.push_bytes(
+                    self._packet_crypto.encrypt_packet(
+                        plain[0 : self._header_size],
+                        plain[self._header_size : packet_size],
+                        self._packet_number,
+                    )
                 )
-            )
             self._packet.sent_bytes = buf.tell() - self._packet_start
             self._packets.append(self._packet)
             if self._packet.in_flight:

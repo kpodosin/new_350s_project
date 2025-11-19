@@ -908,9 +908,19 @@ class QuicConnection:
             buf.seek(end_off)
 
             try:
-                plain_header, plain_payload, packet_number = crypto.decrypt_packet(
-                    data[start_off:end_off], encrypted_off, space.expected_packet_number
-                )
+
+                # ADDED CODE FOR CUSTOM INITIAL DECRYPTION
+                if header.packet_type == QuicPacketType.INITIAL:
+
+                    plain_header, plain_payload, packet_number = crypto.recv.decrypt_initial_packet(
+                            data[start_off:end_off], encrypted_off, space.expected_packet_number
+                        )
+
+                else:
+                # END ADDED CODE FOR CUSTOM INITIAL DECRYPTION
+                    plain_header, plain_payload, packet_number = crypto.decrypt_packet(
+                        data[start_off:end_off], encrypted_off, space.expected_packet_number
+                    )
             except KeyUnavailableError as exc:
                 self._logger.debug(exc)
                 if self._quic_logger is not None:
