@@ -312,7 +312,7 @@ class QuicPacketBuilder:
                 )
                 # ADDED CODE HERE TO ACCOMODATE SIZE OF NEW ENCRYPTION
                 if self._packet_type == QuicPacketType.INITIAL:
-                    length += 256 + 16 + 16 - self._packet_crypto.aead_tag_size
+                    length += 32+12+16-self._packet_crypto.aead_tag_size #Numbers for RSA key: 256 + 16 + 16 - self._packet_crypto.aead_tag_size
 
                 buf.seek(self._packet_start)
                 buf.push_uint8(
